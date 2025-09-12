@@ -1,0 +1,93 @@
+import java.util.Scanner;
+public class Matrices {
+	public static void main(String[] args) {
+		Scanner sc = new Scanner(System.in);
+		System.out.println("Welcome to the Matrices Calculator! If you wish to add or subtract, dimensions must be the same. If you wish to multiply, the number of columns of the first matrix must equal the number of rows of the second.");
+		System.out.println("Enter rows and columns of A: ");
+		int rowsA = sc.nextInt();
+		int columnsA = sc.nextInt();
+		System.out.println("Enter rows and columns of B: ");
+		int rowsB = sc.nextInt();
+		int columnsB = sc.nextInt();
+		int[][] A = new int[rowsA][columnsA];
+		int[][] B = new int[rowsB][columnsB];
+		for (int i = 0; i < A.length; i++) {
+			for (int j = 0; j < A[i].length; j++)
+				A[i][j] = (int)(Math.random() * 99) + 1;
+		}
+		for (int k = 0; k < B.length; k++) {
+			for (int l = 0; l < B[k].length; l++)
+				B[k][l] = (int)(Math.random() * 99) + 1;
+		}
+		System.out.println("Enter 1 to add, 2 to subtract, or 3 to multiply: ");
+		int choice = sc.nextInt();
+		System.out.println();
+		System.out.println("Matrix A: ");
+		for (int m = 0; m < A.length; m++) {
+			System.out.print("[");
+			for (int n = 0; n < A[m].length; n++) {
+				System.out.print(" " + A[m][n] + ",");
+			}
+			System.out.print("]");
+			System.out.println();
+		}
+		System.out.println();
+		System.out.println("Matrix B: ");
+		for (int o = 0; o < B.length; o++) {
+			System.out.print("[");
+			for (int p = 0; p < B[o].length; p++) {
+				System.out.print(" " + B[o][p] + ",");
+			}
+			System.out.print("]");
+			System.out.println();
+		}
+		System.out.println();
+		System.out.println("Resultant Matrix: ");
+		if (choice == 1)
+			addition(A, B);
+		if (choice == 2)
+			subtraction(A, B);
+		if (choice == 3)
+			multiplication(A, B);
+		System.out.println();
+		System.out.println("Thanks for using Matrices Calculator!");
+	}	
+	public static void addition(int[][] A, int[][] B) {
+		for (int i = 0; i < A.length; i++) {
+			System.out.print("[");
+			for (int j = 0; j < A[i].length; j++) {
+				System.out.print(" " + (A[i][j] + B[i][j]) + ",");
+			}
+			System.out.print("]");
+			System.out.println();
+		}
+	}
+	public static void subtraction(int[][] A, int[][] B) {
+		for (int i = 0; i < A.length; i++) {
+			System.out.print("[");
+			for (int j = 0; j < A[i].length; j++) {
+				System.out.print(" " + (A[i][j] - B[i][j]) + ",");
+			}
+			System.out.print("]");
+			System.out.println();
+		}
+	}
+	public static void multiplication(int[][] A, int[][] B) {
+		int[][] C = new int[A.length][B[0].length];
+		for (int i = 0; i < C.length; i++) {
+			for (int j = 0; j < C[i].length; j++) {
+				for (int k = 0; k < A[0].length; k++) {
+					C[i][j] += A[i][k] * B[k][j];
+				}
+			}
+		}
+		for (int m = 0; m < C.length; m++) {
+			System.out.print("[");
+			for (int n = 0; n < C[m].length; n++) {
+				System.out.print(" " + C[m][n] + ",");
+			}
+			System.out.print("]");
+			System.out.println();
+		}
+	}
+}
