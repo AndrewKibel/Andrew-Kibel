@@ -1,0 +1,140 @@
+import java.util.*;
+public class Connect4 {
+    private static final char EMPTY_CELL = '-';
+    private static final char USER_CELL = 'X';
+    private static final char COMPUTER_CELL = 'O';
+    private static final int ROWS = 6;
+    private static final int COLS = 7;
+    private static final int CONNECT = 4;
+    private char[][] board;
+    private Random random;
+    private boolean gameOver;
+    public Connect4() {
+        board = new char[ROWS][COLS];
+        random = new Random();
+        gameOver = false;
+        initializeBoard();
+    }
+    public void initializeBoard() {
+        for (int i = 0; i < ROWS; i++) {
+            for (int j = 0; j < COLS; j++)
+                board[i][j] = EMPTY_CELL;
+        }
+    }
+    public void printBoard() {
+        for (int i = 0; i < ROWS; i++) {
+            for (int j = 0; j < COLS; j++)
+                System.out.print(board[i][j] + " ");
+            System.out.println();
+        }
+        System.out.println();
+    }
+    public boolean isColumnFull(int col) {
+        return board[0][col] != EMPTY_CELL;
+    }
+    public boolean isValidMove(int col) {
+        return col >= 0 && col < COLS && !isColumnFull(col);
+    }
+    public void makeMove(int col, char c) {
+        for (int i = ROWS - 1; i >= 0; i--) {
+            if (board[i][col] == EMPTY_CELL) {
+                board[i][col] = c;
+                break;
+            }
+        }
+    }
+    public boolean checkWin(int row, int col, char c) {
+        int count = 0;
+        for (int j = Math.max(0, col - CONNECT + 1); j <= Math.min(COLS - CONNECT, col); j++) {
+            count = (board[row][j] == c) ? count + 1 : 0;
+            if (count == CONNECT - 1)
+                return true;
+        }
+        count = 0;
+        for (int i = Math.max(0, row - CONNECT + 1); i <= Math.min(ROWS - CONNECT, row); i++) {
+            count = (board[i][col] == c) ? count + 1 : 0;
+            if (count == CONNECT - 1)
+                return true;
+        }
+        count = 0;
+        int startRow = Math.max(0, row - CONNECT + 1);
+        int startCol = Math.max(0, col - CONNECT + 1);
+        int endRow = Math.min(ROWS - CONNECT, row);
+        int endCol = Math.min(COLS - CONNECT, col);
+        for (int i = startRow, j = startCol; i <= endRow && j <= endCol; i++, j++) {
+            count = (board[i][j] == c) ? count + 1 : 0;
+            if (count == CONNECT - 1)
+                return true;
+        }
+        count = 0;
+        startRow = Math.min(ROWS - 1, row + CONNECT - 1);
+        startCol = Math.max(0, col - CONNECT + 1);
+        endRow = Math.max(CONNECT - 1, row);
+        endCol = Math.min(COLS - CONNECT, col);
+        for (int i = startRow, j = startCol; i >= endRow && j <= endCol; i--, j++) {
+            count = (board[i][j] == c) ? count + 1 : 0;
+            if (count == CONNECT - 1)
+                return true;
+        }
+        return false;
+    }
+    public boolean isBoardFull() {
+        for (int i = 0; i < ROWS; i++) {
+            for (int j = 0; j < COLS; j++)
+                if (board[i][j] == EMPTY_CELL)
+                    return false;
+        }
+        return true;
+    }
+    public void play() {
+        Scanner scanner = new Scanner(System.in);
+        while (!gameOver) {
+            printBoard();
+            System.out.print("Enter your move (column 0-6): ");
+            int userMove = scanner.nextInt();
+            while (!isValidMove(userMove)) {
+                System.out.print("Invalid move. Enter your move (column 0-6): ");
+                userMove = scanner.nextInt();
+            }
+            makeMove(userMove, USER_CELL);
+            if (checkWin(findLastMoveRow(userMove), userMove, USER_CELL)) {
+                printBoard();
+                System.out.println("Congratulations! You win!");
+                gameOver = true;
+                break;
+            }
+            if (isBoardFull()) {
+                printBoard();
+                System.out.println("It's a draw!");
+                gameOver = true;
+                break;
+            }
+            int computerMove;
+            do {
+                computerMove = random.nextInt(COLS);
+            } while (!isValidMove(computerMove));
+            makeMove(computerMove, COMPUTER_CELL);
+            if (checkWin(findLastMoveRow(computerMove), computerMove, COMPUTER_CELL)) {
+                printBoard();
+                System.out.println("Sorry, you lost. Better luck next time!");
+                gameOver = true;
+                break;
+            }
+        }
+        scanner.close();
+    }
+    public int findLastMoveRow(int col) {
+        for (int row = 0; row < ROWS; row++) {
+            if (board[row][col] != EMPTY_CELL)
+                return row;
+        }
+        return -1;
+    }
+}
+
+public class Main {
+	public static void main(String[] args) {
+        Connect4 connect4 = new Connect4();
+        connect4.play();
+    }
+}
