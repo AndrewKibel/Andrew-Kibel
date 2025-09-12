@@ -1,0 +1,23 @@
+import java.util.Scanner;
+public class Main {
+	public static void main(String[] args) {
+		Scanner sc = new Scanner(System.in);
+		System.out.println("Enter a number: ");
+		int oldNum = sc.nextInt();
+		System.out.println("Enter its base: ");
+		int oldBase = sc.nextInt();
+		System.out.println("Enter the target base: ");
+		int newBase = sc.nextInt();
+		int base10 = 0;
+		for (int i = 0; oldNum > 0; i++) {
+			base10 += ((oldNum % 10) * Math.pow(oldBase, i));
+			oldNum /= 10;
+		}
+		int newNum = 0;
+		for (int j = 0; base10 > 0; j++) {
+			newNum += (base10 - ((base10 / newBase) * newBase)) * Math.pow(10, j);
+			base10 /= newBase;
+		}
+		System.out.println("The equivalent value is: " + newNum + " (base " + newBase + ")");
+	}
+}
