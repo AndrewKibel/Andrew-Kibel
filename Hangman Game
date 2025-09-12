@@ -1,0 +1,82 @@
+import java.util.Scanner;
+public class Main {
+	public static void main(String[] args) {
+		boolean play = true;
+		while (play) {
+			String word = randomWord();
+			String displayWord = "";
+			int y = (int)(Math.random() * word.length());
+			int z = (int)(Math.random() * word.length());
+			if (y == z && y > 0)
+				z--;
+			if (y == z && y == 0)
+				z++;
+			char c = word.charAt(y);
+			char d = word.charAt(z);
+			for (int i = 0; i < word.length(); i++) {
+				if (word.charAt(i) != c && word.charAt(i) != d)
+					displayWord += "_";
+				else
+					if (word.charAt(i) == c)
+						displayWord += c;
+					else
+						displayWord += d;
+			}
+			System.out.println("Word to guess: " + displayWord);
+			int tries = 3;
+			while (tries > 0) {
+				Scanner sc = new Scanner(System.in);
+				System.out.println("Guess a letter: ");
+				char guess = sc.next().charAt(0);
+				guess = Character.toLowerCase(guess);
+				if (word.indexOf(guess) >= 0) {
+					for (int j = 0; j < word.length(); j++) {
+						if(word.charAt(j) == guess)
+							displayWord = displayWord.substring(0, j) + guess + displayWord.substring(j + 1);
+					}
+					System.out.println(guess + " is in the word. " + tries + " tries left.");
+					System.out.println(displayWord);
+				}
+				else {
+					tries--;
+					System.out.println(guess + " is not in the word. " + tries + " tries left.");
+					if (tries == 0)
+						System.out.println("Incorrect! The word was: " + word);
+				}
+				if (displayWord.equals(word)) {
+					tries = 0;
+					System.out.println("Correct! The word is: " + word);
+				}
+			}
+			Scanner sc = new Scanner(System.in);
+			System.out.println("Would you like to play again?");
+			String option = sc.nextLine();
+			if (option.equals("Yes") || option.equals("yes") || option.equals("y"))
+				play = true;
+			else
+				play = false;
+		}
+	}
+	public static String randomWord() {
+		String word = "";
+		int x = (int)(Math.random() * 5);
+		switch (x) {
+			case 0:
+				word = "cranberries";
+				break;
+			case 1:
+				word = "turkey";
+				break;
+			case 2:
+				word = "potatoes";
+				break;
+			case 3:
+				word = "stuffing";
+				break;
+			case 4:
+				word = "casserole";
+				break;
+		}
+		return word;
+	}
+}
