@@ -1,0 +1,264 @@
+import java.awt.*;
+import java.awt.event.*;
+import javax.swing.*;
+
+public class Lipogrammer extends JFrame
+    implements ActionListener
+{
+  private JTextArea original, marked, words;
+  private JButton go;
+
+  public Lipogrammer()
+  {
+    super("Lipogrammer");
+
+    setJMenuBar(new LipogrammerMenu(this));
+    setupGui();
+
+    original.setText("Type or paste your text here or load it from a file");
+    refresh();
+  }
+
+  public String getText()
+  {
+    return original.getText();
+  }
+
+  public void setText(String text)
+  {
+    original.setText(text);
+  }
+
+  public void refresh()
+  {
+    String text = original.getText();
+    LipogramAnalyzer analyzer = new LipogramAnalyzer(text.toLowerCase());
+    marked.setText(analyzer.mark('e'));
+    words.setText(analyzer.allWordsWith('e'));
+  }
+ 
+  public void actionPerformed(ActionEvent e)
+  {
+    refresh();
+  }
+
+  private void setupGui()
+  {
+    original = new JTextArea(10, 20);
+    original.setLineWrap(true);
+    original.setWrapStyleWord(true);
+    JScrollPane originalPane = new JScrollPane(original,
+              ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS,
+              ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+
+    marked = new JTextArea(10, 20);
+    marked.setEditable(false);
+    marked.setBackground(Color.LIGHT_GRAY);
+    marked.setLineWrap(true);
+    marked.setWrapStyleWord(true);
+    JScrollPane markedPane = new JScrollPane(marked,
+              ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS,
+              ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+
+    words = new JTextArea(10, 10);
+    words.setEditable(false);
+    words.setBackground(Color.LIGHT_GRAY);
+    JScrollPane wordsPane = new JScrollPane(words,
+              ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+              ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+
+    go = new JButton("Refresh");
+    go.addActionListener(this);
+
+    Box box1 = Box.createVerticalBox();
+    box1.add(Box.createVerticalStrut(10));
+    box1.add(originalPane);
+    box1.add(Box.createVerticalStrut(10));
+    box1.add(markedPane);
+    box1.add(Box.createVerticalStrut(10));
+    box1.add(go);
+    Box box2 = Box.createVerticalBox();
+    box2.add(Box.createVerticalStrut(10));
+    box2.add(wordsPane);
+    box2.add(Box.createVerticalStrut(40));
+    Box box3 = Box.createHorizontalBox();
+    box3.add(box1);
+    box3.add(Box.createHorizontalStrut(20));
+    box3.add(box2);
+
+    Container c = getContentPane();
+    c.setLayout (new FlowLayout());
+    c.add(box3);
+  }
+
+  public static void main(String[] args)
+  {
+    Lipogrammer window = new Lipogrammer();
+    window.setBounds(100, 100, 480, 480);
+    window.setDefaultCloseOperation(EXIT_ON_CLOSE);
+    window.setVisible(true);
+  }
+}
+
+import java.awt.event.*;
+import javax.swing.*;
+import java.io.*;
+import java.util.Scanner;
+
+public class LipogrammerMenu extends JMenuBar
+{
+  private Lipogrammer lipogrammer;
+  private JMenuItem openItem, saveItem, exitItem;
+
+  public LipogrammerMenu(Lipogrammer lipo)
+  {
+    lipogrammer = lipo;
+
+    JMenu fileMenu = new JMenu("File");
+    fileMenu.setMnemonic('F');
+
+    FileAction fileAction = new FileAction();
+    openItem = new JMenuItem("Open...");
+    openItem.setMnemonic('O');
+    openItem.addActionListener(fileAction);
+    saveItem = new JMenuItem("Save...");
+    saveItem.setMnemonic('S');
+    saveItem.addActionListener(fileAction);
+    exitItem = new JMenuItem("Exit");
+    exitItem.setMnemonic('x');
+    exitItem.addActionListener(fileAction);
+    fileMenu.add(openItem);
+    fileMenu.add(saveItem);
+    fileMenu.addSeparator();
+    fileMenu.add(exitItem);
+    add(fileMenu);
+  }
+
+  private class FileAction implements ActionListener
+  {
+    private String pathname = System.getProperty("user.dir") + "/";
+
+    public void actionPerformed(ActionEvent e)
+    {
+      JMenuItem m = (JMenuItem)e.getSource();
+      if (m == openItem)
+      {
+        loadText();
+      }
+      else if (m == saveItem)
+      {
+        saveText();
+      }
+      else if (m == exitItem)
+      {
+        System.exit(0);
+      }
+    }
+
+    private void loadText()
+    {
+      JFileChooser fileChooser = new JFileChooser(pathname);
+      fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+      int result = fileChooser.showOpenDialog(lipogrammer);
+      if (result == JFileChooser.CANCEL_OPTION)
+        return;
+
+      File file = fileChooser.getSelectedFile();
+      if (file == null)
+        return;
+
+      pathname = file.getAbsolutePath();
+      Scanner fileIn = null;
+      try
+      {
+        fileIn = new Scanner(file);
+      }
+      catch (IOException ex)
+      {
+        System.out.println("*** Can't open file ***");
+        return;
+      }
+
+      StringBuffer buffer = new StringBuffer((int)file.length());
+      while (fileIn.hasNextLine())
+        buffer.append(fileIn.nextLine());
+
+      lipogrammer.setText(buffer.toString());
+      lipogrammer.refresh();
+      fileIn.close();
+    }
+
+    private void saveText()
+    {
+      lipogrammer.refresh();
+      JFileChooser fileChooser = new JFileChooser(pathname);
+      fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+      int result = fileChooser.showSaveDialog(lipogrammer);
+      if (result == JFileChooser.CANCEL_OPTION)
+        return;
+
+      File file = fileChooser.getSelectedFile();
+      if (file != null)
+      {
+        pathname = file.getAbsolutePath();
+        PrintWriter fileOut;
+        try
+        {
+          fileOut = new PrintWriter(new FileWriter(file));
+        }
+        catch (IOException ex)
+        {
+          System.out.println("*** Can't create file ***");
+          return;
+        }
+
+        fileOut.print(lipogrammer.getText());
+        fileOut.close();
+      }
+    }
+  }
+}
+
+public class LipogramAnalyzer {
+	private String text;
+	public LipogramAnalyzer(String t) {
+		text = t;
+	}
+	public String mark(char letter) {
+		String text2 = text.replace(letter , '#');
+		return text2;
+	}
+	public String allWordsWith(char letter) {
+		String word = "";
+		for (int i = 0; i < text.length(); i++) {
+			if (text.charAt(i) == letter)
+				word =  extractWord(i);
+		}
+		return word;
+	}
+	private String extractWord(int location) {
+		String temp1 = "";
+		String temp2 = "";
+		String badWord = "";
+		for (int i = location; i > 0; i--) {
+			if (location >= 0) {
+				for (int j = location; j > 0; j--) {
+					if (text.charAt(j) == '\n')
+						temp1 = text.substring(j, location);
+				}
+				for (int k = location; k < text.length(); k++) {
+					if (text.charAt(k) == '\n')
+						temp2 = text.substring(location, k);
+				}	
+			}
+			badWord = temp1 + temp2;
+		}
+		return badWord;
+	}
+}
+
+class Main {
+	public static void main(String[] args) {
+		Lipogrammer.main(args);
+	}
+}
