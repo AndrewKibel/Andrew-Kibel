@@ -1,0 +1,77 @@
+import java.util.ArrayList;
+public class Main {
+	public static void main(String[] args) {
+		String[] holidays = {"Thanksgiving", "Hanukkah", "Christmas", "Kwanzaa", "New Year", "Lunar New Year", "Groundhog", "Valentines", "Presidents", "Martin Luther King", "St Patrick", "Ramadan", "Passover", "Good Friday", "Easter", "Independence", "Rosh Hashana", "Yom Kippur", "Veterans", "Purim"};
+		int z = (int)(Math.random() * 4) + 5;
+		ArrayList<String> holidayList = new ArrayList<String>();
+		for (int i = 0; i < z; i++) {
+			int index = (int)(Math.random() * holidays.length);
+			while (holidayList.contains(holidays[index]))
+				index = (int)(Math.random() * holidays.length);
+			holidayList.add(holidays[index]);
+		}
+		char[][] puzzle = new char[100][100];
+		for (int j = 0; j < puzzle.length; j++) {
+			for (int k = 0; k < puzzle[j].length; k++)
+				puzzle[j][k] = '.';
+		}
+		for (int l = 45; l < 45 + holidayList.get(0).length(); l++)
+				puzzle[50][l] = holidayList.get(0).charAt(l - 45);
+		holidayList.remove(0);
+		int count = 1;
+		int row = 50;
+		int col = 45;
+		String word2 = "";
+		while (holidayList.size() > 0) {
+			if (count % 2 != 0) {
+				loop:
+				for (int m = 0; m < holidayList.size(); m++) {
+					for (int n = col; n < col + holidayList.get(m).length(); n++) {
+						if (holidayList.get(m).indexOf(Character.toString(puzzle[row][n])) >= 0) {
+							col = n;
+							word2 = holidayList.get(m);
+							holidayList.remove(m);
+							int newIndex = word2.indexOf(Character.toString(puzzle[row][col]));
+							row -= newIndex;
+							for (int o = row; o < row + word2.length(); o++)
+								puzzle[o][col] = word2.charAt(o - row);
+							count++;
+							break loop;
+						}
+					}
+					if (m == holidayList.size() - 1) {
+						count++;
+						holidayList.remove(m);
+					}
+				}
+			}
+			else {
+				loop:
+				for (int p = 0; p < holidayList.size(); p++) {
+					for (int q = row; q < row + holidayList.get(p).length(); q++) {
+						if (holidayList.get(p).indexOf(Character.toString(puzzle[q][col])) >= 0) {
+							row = q;
+							word2 = holidayList.get(p);
+							holidayList.remove(p);
+							int newIndex = word2.indexOf(Character.toString(puzzle[row][col]));
+							col -= newIndex;
+							for (int r = col; r < col + word2.length(); r++)
+								puzzle[row][r] = word2.charAt(r - col);
+							count++;
+							break loop;
+						}
+					}
+					if (p == holidayList.size() - 1) {
+						count++;
+						holidayList.remove(p);
+					}
+				}
+			}
+		}
+		for (char[] x : puzzle) {
+			for (char y : x) 
+				System.out.print(y);
+			System.out.println();
+		}
+	}
+}
