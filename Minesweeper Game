@@ -1,0 +1,111 @@
+public class Main {
+	public static void main(String[] args) {
+        Minesweeper minesweeper = new Minesweeper();
+        minesweeper.play();
+    }
+}
+
+import java.util.*;
+public class Minesweeper {
+    private static final char HIDDEN_CELL = '#';
+    private static final char MINE_CELL = '*';
+    private static final char EMPTY_CELL = ' ';
+    private static final int NUM_MINES = 10;
+    private static final int BOARD_SIZE = 8;
+	private char[][] board;
+    private boolean[][] revealed;
+    private boolean gameOver;
+	public Minesweeper() {
+        board = new char[BOARD_SIZE][BOARD_SIZE];
+        revealed = new boolean[BOARD_SIZE][BOARD_SIZE];
+        gameOver = false;
+		initializeBoard();
+        placeMines();
+    }
+	public void initializeBoard() {
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                board[i][j] = HIDDEN_CELL;
+                revealed[i][j] = false;
+            }
+        }
+    }
+	public void placeMines() {
+        Random random = new Random();
+        int count = 0;
+		while (count < NUM_MINES) {
+            int row = random.nextInt(BOARD_SIZE);
+            int col = random.nextInt(BOARD_SIZE);
+			if (board[row][col] != MINE_CELL) {
+                board[row][col] = MINE_CELL;
+                count++;
+            }
+        }
+    }
+	public void revealCell(int row, int col) {
+        if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE || revealed[row][col])
+            return;
+		revealed[row][col] = true;
+		if (board[row][col] == MINE_CELL)
+            gameOver = true;
+		else if (board[row][col] == EMPTY_CELL)
+            revealNeighbors(row, col);
+    }
+	public void revealNeighbors(int row, int col) {
+        for (int i = row - 1; i <= row + 1; i++) {
+            for (int j = col - 1; j <= col + 1; j++) {
+                if (i >= 0 && i < BOARD_SIZE && j >= 0 && j < BOARD_SIZE)
+                    revealCell(i, j);
+            }
+        }
+    }
+	public void printBoard(boolean showMines) {
+        System.out.print("  ");
+        for (int i = 0; i < BOARD_SIZE; i++)
+            System.out.print(i + " ");
+        System.out.println();
+		for (int i = 0; i < BOARD_SIZE; i++) {
+            System.out.print(i + " ");
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                if (revealed[i][j] || showMines)
+                    System.out.print(board[i][j] + " ");
+				else
+                    System.out.print(HIDDEN_CELL + " ");
+            }
+            System.out.println();
+        }
+    }
+	public void play() {
+        Scanner scanner = new Scanner(System.in);
+		while (!gameOver) {
+            printBoard(false);
+            System.out.print("Enter row: ");
+            int row = scanner.nextInt();
+            System.out.print("Enter column: ");
+            int col = scanner.nextInt();
+            System.out.println();
+			revealCell(row, col);
+			if (gameOver) {
+                System.out.println("Game Over! You hit a mine.");
+                printBoard(true);
+            } 
+			else {
+                boolean allCellsRevealed = true;
+                for (int i = 0; i < BOARD_SIZE; i++) {
+                    for (int j = 0; j < BOARD_SIZE; j++) {
+                        if (!revealed[i][j] && board[i][j] != MINE_CELL) {
+                            allCellsRevealed = false;
+                            break;
+                        }
+                    }
+                }
+				if (allCellsRevealed) {
+                    System.out.println("Congratulations! You won the game.");
+                    printBoard(true);
+                    break;
+                }
+            }
+        }
+		scanner.close();
+    }
+}
