@@ -1,0 +1,73 @@
+import java.util.Scanner;
+public class Main {
+	public static void main(String[] args) {
+		Scanner sc = new Scanner(System.in);
+		System.out.println("Enter the total number of tests (including the one that will replace the lowest grade): ");
+		int totalTests = sc.nextInt();
+		System.out.println("Which test will replace the lowest grade?");
+		int replacer = sc.nextInt();
+		Test[] tests = new Test[totalTests];
+		for (int i = 1; i <= totalTests; i++) {
+			System.out.println("Test " + i + " Points Earned: ");
+			double pE = sc.nextDouble();
+			System.out.println("Test " + i + " Total Points Possible: ");
+			int tP = sc.nextInt();
+			tests[i-1] = new Test(pE, tP);
+		}
+		double oldAverage = averageTests(tests) * 100;
+		int test = testToReplace(replacer, tests);
+		tests[test - 1] = tests[replacer - 1];
+		double newAverage = averageTests(tests) * 100;
+		if (test == replacer) {
+			System.out.println("This test is the lowest grade, so no test should be replaced in order to optimize the grade.");
+			System.out.println("The student's test average is still " + oldAverage);
+		}
+		else {
+			System.out.println("The test that should be replaced is Test " + test + ".");
+			System.out.println("Old Average " + oldAverage);
+			System.out.println("New Average " + newAverage);
+		}
+	}
+	public static int testToReplace(int replacer, Test[] tests) {
+		Test[] tempArr = new Test[tests.length];
+		for (int i = 0; i < tempArr.length; i++)
+			tempArr[i] = tests[i];
+		double maxAverage = 0;
+		int test = 0;
+		for (int j = 0; j < tempArr.length; j++) {
+			Test temp = tests[j];
+			tests[j] = tests[replacer - 1];
+			double newAverage = averageTests(tests);
+			if (newAverage > maxAverage) {
+				maxAverage = newAverage;
+				test = j + 1;
+			}
+			tests[j] = temp;
+		}
+		return test;
+	}
+	public static double averageTests(Test[] tests) {
+		double totalPointsEarned = 0;
+		int totalPointsPossible = 0;
+		for (int i = 0; i < tests.length; i++) {
+			totalPointsEarned += tests[i].getPointsEarned();
+			totalPointsPossible += tests[i].getTotalPoints();
+		}
+		return (totalPointsEarned / totalPointsPossible);
+	}
+}
+
+public class Test {
+	private double pointsEarned;
+	private int totalPoints;
+	public Test(double pE, int tP) {
+		pointsEarned = pE;
+		totalPoints = tP;
+	}
+	public double getPointsEarned() {
+		return pointsEarned;
+	}
+	public int getTotalPoints() {
+		return totalPoints;
+	}
+}
