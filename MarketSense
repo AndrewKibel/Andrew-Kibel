@@ -1,3 +1,174 @@
+# MarketSense
+
+MarketSense is a Python data science and machine learning project that analyzes historical stock market data, trains a model to predict next-day price direction, and tests whether those predictions would have helped in a simple trading strategy.
+
+The project is designed for a Python programming final project. It uses real-world data, object-oriented programming, data cleaning, feature engineering, machine learning, backtesting, and visualization.
+
+## Project Motivation
+
+A lot of beginner machine learning projects stop at model accuracy. MarketSense goes one step further by asking a more realistic question: even if a model predicts whether a stock will go up or down, would that prediction actually be useful in a trading strategy?
+
+This project does not claim to beat the market. Instead, it demonstrates the kind of workflow used in data science and quantitative finance:
+
+1. Load data
+2. Clean the data
+3. Create predictive features
+4. Train a model
+5. Evaluate predictions
+6. Backtest a simple strategy
+7. Visualize the results
+
+## Features
+
+- Downloads historical stock data using `yfinance`
+- Includes an offline demo mode using synthetic stock-like data
+- Creates features such as returns, moving averages, momentum, volatility, and volume changes
+- Trains either a Random Forest model or Logistic Regression model
+- Uses chronological train/test splitting to avoid future-data leakage
+- Backtests a simple model-based long/cash strategy
+- Compares model strategy performance to buy-and-hold performance
+- Saves metrics, CSV files, and charts to the `results/` folder
+
+## Code Structure
+
+```text
+MarketSense/
+│
+├── main.py                      # Runs the full project pipeline
+├── requirements.txt             # Packages needed to run the project
+├── README.md                    # Project explanation and instructions
+├── PRESENTATION_GUIDE.md         # Notes for presenting the project
+│
+├── marketsense/
+│   ├── __init__.py
+│   ├── data_loader.py            # Downloads real stock data or creates demo data
+│   ├── features.py               # Creates machine learning features and target labels
+│   ├── model.py                  # Defines MarketModel class for training/evaluation
+│   ├── backtester.py             # Defines Backtester class for strategy simulation
+│   ├── visualizer.py             # Creates charts
+│   └── utils.py                  # Helper functions
+│
+└── results/                      # Output folder created when the program runs
+```
+
+## Requirements Satisfied
+
+This project satisfies the final project requirements in several ways:
+
+- **At least one class definition:** `MarketModel`, `Backtester`, `SplitData`, and `BacktestResult`
+- **First-party packages:** `argparse`, `datetime`, `json`, `pathlib`, and `dataclasses`
+- **Third-party packages:** `pandas`, `numpy`, `matplotlib`, `scikit-learn`, and `yfinance`
+- **Documented code:** Functions and classes include docstrings and comments
+- **README:** This file explains installation, structure, and usage
+
+## Installation Instructions
+
+First, unzip the project folder. Then open a terminal in the `MarketSense` folder.
+
+Create and activate a virtual environment:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+On Windows, use:
+
+```bash
+python -m venv venv
+venv\Scripts\activate
+```
+
+Install the required packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+## How to Run the Project
+
+### Option 1: Run with real stock data
+
+Example using Apple stock:
+
+```bash
+python main.py --ticker AAPL --start 2018-01-01 --end 2024-01-01
+```
+
+Example using the S&P 500 ETF:
+
+```bash
+python main.py --ticker SPY --start 2016-01-01 --end 2024-01-01
+```
+
+### Option 2: Run offline demo mode
+
+If internet access is not working, run:
+
+```bash
+python main.py --demo
+```
+
+This uses synthetic stock-like data so the project can still be demonstrated.
+
+### Option 3: Try logistic regression instead of random forest
+
+```bash
+python main.py --ticker MSFT --start 2018-01-01 --end 2024-01-01 --model logistic_regression
+```
+
+or:
+
+```bash
+python main.py --demo --model logistic_regression
+```
+
+## Outputs
+
+After the program runs, it saves files in the `results/` folder:
+
+- Raw data CSV
+- Backtest history CSV
+- Metrics JSON file
+- Price and signal chart
+- Portfolio comparison chart
+
+The most important chart is the portfolio comparison chart. It shows how the model-based strategy performed compared to simply buying and holding the stock.
+
+## How the Model Works
+
+The model predicts whether the next trading day's return will be positive. The target variable is:
+
+```text
+1 = stock goes up tomorrow
+0 = stock does not go up tomorrow
+```
+
+The model uses features such as:
+
+- Daily return
+- Moving average relationships
+- Momentum over recent days
+- Volatility
+- Volume change
+
+To make the evaluation more realistic, the code uses a time-based split. The model trains on the first 75% of the data and tests on the last 25%. This avoids the mistake of training on future market data.
+
+## Backtesting Logic
+
+The backtesting strategy is intentionally simple:
+
+- If the model predicts the stock will go up, the strategy holds the stock.
+- If the model predicts the stock will not go up, the strategy stays in cash.
+
+The program compares this model-based strategy to buy-and-hold, where the investor simply buys the stock and holds it for the entire test period.
+
+A small transaction cost is included when the strategy switches between cash and stock.
+
+## Important Limitations
+
+This project is educational. It should not be used as real financial advice. Stock prediction is extremely difficult, and a simple model using only price-based features is not enough to reliably beat the market. The purpose of the project is to demonstrate data science and machine learning workflow, not to produce a guaranteed trading system.
+
 """MarketSense command-line application.
 
 Example commands:
