@@ -1,0 +1,575 @@
+"""MarketSense command-line application.
+
+Example commands:
+    python main.py --ticker AAPL --start 2018-01-01 --end 2024-01-01
+    python main.py --demo --model logistic_regression
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+from marketsense.backtester import Backtester
+from marketsense.data_loader import download_stock_data, generate_demo_data, save_raw_data
+from marketsense.features import add_features
+from marketsense.model import MarketModel
+from marketsense.utils import format_percent, save_json
+from marketsense.visualizer import plot_portfolio_values, plot_price_and_signals
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="MarketSense: ML stock prediction and backtesting tool")
+    parser.add_argument("--ticker", type=str, default="AAPL", help="Stock ticker, such as AAPL or SPY")
+    parser.add_argument("--start", type=str, default="2018-01-01", help="Start date in YYYY-MM-DD format")
+    parser.add_argument("--end", type=str, default="2024-01-01", help="End date in YYYY-MM-DD format")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="random_forest",
+        choices=["random_forest", "logistic_regression"],
+        help="Model type to train",
+    )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Use synthetic offline demo data instead of downloading real stock data",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="results",
+        help="Directory where outputs should be saved",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    """Run the full MarketSense pipeline."""
+    args = parse_args()
+    output_dir = Path(args.output_dir)
+    ticker_label = "DEMO" if args.demo else args.ticker.upper()
+
+    print("\n=== MarketSense ===")
+    print(f"Ticker/Data: {ticker_label}")
+    print(f"Model: {args.model}")
+
+    if args.demo:
+        print("Using synthetic demo data so the project can run without internet.")
+        raw_data = generate_demo_data()
+    else:
+        print(f"Downloading {args.ticker.upper()} data from {args.start} to {args.end}...")
+        raw_data = download_stock_data(args.ticker, args.start, args.end)
+
+    raw_path = save_raw_data(raw_data, output_dir, ticker_label)
+    print(f"Saved raw data: {raw_path}")
+
+    print("Creating features...")
+    df = add_features(raw_data)
+
+    market_model = MarketModel(model_type=args.model)
+    split = market_model.time_split(df)
+
+    print(f"Training rows: {len(split.X_train)}")
+    print(f"Testing rows: {len(split.X_test)}")
+    print("Training model...")
+    market_model.fit(split.X_train, split.y_train)
+
+    predictions = market_model.predict(split.X_test)
+    probabilities = market_model.predict_proba_positive(split.X_test)
+    model_metrics = market_model.evaluate(split.y_test, predictions)
+
+    test_df = df.iloc[len(split.X_train):].copy().reset_index(drop=True)
+    backtester = Backtester(initial_cash=10_000.0, transaction_cost=0.0005)
+    result = backtester.run(test_df, predictions, probabilities)
+
+    history_path = output_dir / f"{ticker_label}_backtest_history.csv"
+    result.history.to_csv(history_path, index=False)
+
+    plot1 = plot_price_and_signals(result.history, output_dir, ticker_label)
+    plot2 = plot_portfolio_values(result.history, output_dir, ticker_label)
+
+    all_metrics = {
+        "ticker_or_data": ticker_label,
+        "model_metrics": model_metrics,
+        "backtest_metrics": result.metrics,
+    }
+    metrics_path = output_dir / f"{ticker_label}_metrics.json"
+    save_json(all_metrics, metrics_path)
+
+    print("\n=== Model Results ===")
+    print(f"Accuracy:  {format_percent(model_metrics['accuracy'])}")
+    print(f"Precision: {format_percent(model_metrics['precision'])}")
+    print(f"Recall:    {format_percent(model_metrics['recall'])}")
+
+    print("\n=== Backtest Results ===")
+    print(f"Model strategy total return: {format_percent(result.metrics['strategy_total_return'])}")
+    print(f"Buy-and-hold total return:   {format_percent(result.metrics['buy_hold_total_return'])}")
+    print(f"Model strategy final value:  ${result.metrics['strategy_final_value']:.2f}")
+    print(f"Buy-and-hold final value:    ${result.metrics['buy_hold_final_value']:.2f}")
+    print(f"Number of trades:            {int(result.metrics['number_of_trades'])}")
+
+    print("\n=== Saved Outputs ===")
+    print(f"Backtest history: {history_path}")
+    print(f"Metrics:          {metrics_path}")
+    print(f"Signal plot:      {plot1}")
+    print(f"Portfolio plot:   {plot2}")
+    print("\nDone. Open the PNG files in the results folder to view the charts.\n")
+
+
+if __name__ == "__main__":
+    main()
+
+"""Utility helpers for MarketSense."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any, Dict
+
+
+def save_json(data: Dict[str, Any], output_path: Path) -> None:
+    """Save a dictionary as a readable JSON file."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8") as file:
+        json.dump(data, file, indent=4)
+
+
+def format_percent(value: float) -> str:
+    """Format a decimal return or metric as a percentage string."""
+    return f"{value * 100:.2f}%"
+
+"""Plotting functions for MarketSense."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import pandas as pd
+
+
+def plot_price_and_signals(history: pd.DataFrame, output_dir: Path, ticker: str) -> Path:
+    """Plot price history with model buy signals."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"{ticker.upper()}_price_signals.png"
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(history["Date"], history["Close"], label="Close Price")
+    buy_signals = history[history["Prediction"] == 1]
+    plt.scatter(buy_signals["Date"], buy_signals["Close"], marker="^", label="Model Says Hold Stock")
+    plt.title(f"{ticker.upper()} Price and Model Signals")
+    plt.xlabel("Date")
+    plt.ylabel("Price")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
+    return output_path
+
+
+def plot_portfolio_values(history: pd.DataFrame, output_dir: Path, ticker: str) -> Path:
+    """Plot model strategy value against buy-and-hold value."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"{ticker.upper()}_portfolio_comparison.png"
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(history["Date"], history["Strategy_Value"], label="Model Strategy")
+    plt.plot(history["Date"], history["Buy_Hold_Value"], label="Buy and Hold")
+    plt.title(f"{ticker.upper()} Backtest: Model Strategy vs. Buy and Hold")
+    plt.xlabel("Date")
+    plt.ylabel("Portfolio Value ($)")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
+    return output_path
+"""Simple backtesting engine for MarketSense."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Dict
+
+import numpy as np
+import pandas as pd
+
+
+@dataclass
+class BacktestResult:
+    """Stores the output of a backtest."""
+
+    history: pd.DataFrame
+    metrics: Dict[str, float]
+
+
+class Backtester:
+    """Backtest a simple long/cash strategy using model predictions.
+
+    The strategy is intentionally simple for a programming class project:
+    - If the model predicts the stock will go up tomorrow, hold the stock.
+    - Otherwise, stay in cash for that day.
+    """
+
+    def __init__(self, initial_cash: float = 10_000.0, transaction_cost: float = 0.0005) -> None:
+        """Initialize the backtester.
+
+        Args:
+            initial_cash: Starting portfolio value.
+            transaction_cost: Cost paid when switching between cash and stock.
+        """
+        self.initial_cash = initial_cash
+        self.transaction_cost = transaction_cost
+
+    def run(self, test_df: pd.DataFrame, predictions, probabilities=None) -> BacktestResult:
+        """Run the backtest.
+
+        Args:
+            test_df: Test-period DataFrame with Date, Close, and Next_Day_Return.
+            predictions: Model predictions for each row in test_df.
+            probabilities: Optional probabilities of an upward move.
+
+        Returns:
+            BacktestResult containing daily portfolio history and metrics.
+        """
+        history = test_df[["Date", "Close", "Next_Day_Return"]].copy().reset_index(drop=True)
+        history["Prediction"] = predictions
+        if probabilities is not None:
+            history["Predicted_Probability_Up"] = probabilities
+
+        # A prediction of 1 means the strategy is invested for the next day's return.
+        history["Strategy_Position"] = history["Prediction"].astype(int)
+        history["Buy_Hold_Return"] = history["Next_Day_Return"]
+        history["Strategy_Return_Before_Cost"] = history["Strategy_Position"] * history["Next_Day_Return"]
+
+        # Apply a simple transaction cost when the position changes.
+        history["Trade"] = history["Strategy_Position"].diff().abs().fillna(history["Strategy_Position"])
+        history["Strategy_Return"] = history["Strategy_Return_Before_Cost"] - (
+            history["Trade"] * self.transaction_cost
+        )
+
+        history["Strategy_Value"] = self.initial_cash * (1 + history["Strategy_Return"]).cumprod()
+        history["Buy_Hold_Value"] = self.initial_cash * (1 + history["Buy_Hold_Return"]).cumprod()
+
+        metrics = self._performance_metrics(history)
+        return BacktestResult(history=history, metrics=metrics)
+
+    def _performance_metrics(self, history: pd.DataFrame) -> Dict[str, float]:
+        """Calculate portfolio performance statistics."""
+        strategy_total = history["Strategy_Value"].iloc[-1] / self.initial_cash - 1
+        buy_hold_total = history["Buy_Hold_Value"].iloc[-1] / self.initial_cash - 1
+
+        strategy_daily = history["Strategy_Return"].replace([np.inf, -np.inf], np.nan).dropna()
+        buy_hold_daily = history["Buy_Hold_Return"].replace([np.inf, -np.inf], np.nan).dropna()
+
+        strategy_sharpe = self._annualized_sharpe(strategy_daily)
+        buy_hold_sharpe = self._annualized_sharpe(buy_hold_daily)
+
+        return {
+            "strategy_total_return": float(strategy_total),
+            "buy_hold_total_return": float(buy_hold_total),
+            "strategy_final_value": float(history["Strategy_Value"].iloc[-1]),
+            "buy_hold_final_value": float(history["Buy_Hold_Value"].iloc[-1]),
+            "strategy_annualized_sharpe": float(strategy_sharpe),
+            "buy_hold_annualized_sharpe": float(buy_hold_sharpe),
+            "number_of_trades": float(history["Trade"].sum()),
+        }
+
+    @staticmethod
+    def _annualized_sharpe(daily_returns: pd.Series) -> float:
+        """Calculate annualized Sharpe ratio using 252 trading days."""
+        if daily_returns.std() == 0 or daily_returns.empty:
+            return 0.0
+        return float((daily_returns.mean() / daily_returns.std()) * np.sqrt(252))
+
+"""Machine learning model wrapper for MarketSense."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Dict, Tuple
+
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, classification_report, precision_score, recall_score
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+
+from .features import FEATURE_COLUMNS
+
+
+@dataclass
+class SplitData:
+    """Container for train/test data."""
+
+    X_train: pd.DataFrame
+    X_test: pd.DataFrame
+    y_train: pd.Series
+    y_test: pd.Series
+    train_dates: pd.Series
+    test_dates: pd.Series
+
+
+class MarketModel:
+    """Train and evaluate a model that predicts next-day stock direction."""
+
+    def __init__(self, model_type: str = "random_forest") -> None:
+        """Initialize the model.
+
+        Args:
+            model_type: Either "random_forest" or "logistic_regression".
+        """
+        self.model_type = model_type
+        self.model = self._build_model(model_type)
+
+    def _build_model(self, model_type: str):
+        """Create the requested scikit-learn model."""
+        if model_type == "logistic_regression":
+            return Pipeline(
+                steps=[
+                    ("scaler", StandardScaler()),
+                    ("classifier", LogisticRegression(max_iter=2000, random_state=42)),
+                ]
+            )
+        if model_type == "random_forest":
+            return RandomForestClassifier(
+                n_estimators=300,
+                max_depth=5,
+                min_samples_leaf=10,
+                random_state=42,
+            )
+        raise ValueError("model_type must be 'random_forest' or 'logistic_regression'.")
+
+    def time_split(self, df: pd.DataFrame, train_fraction: float = 0.75) -> SplitData:
+        """Split data chronologically instead of randomly.
+
+        Random splitting would leak future market information into the training set.
+        A time split is more realistic because the model trains on the past and tests
+        on later unseen dates.
+
+        Args:
+            df: Feature-engineered DataFrame.
+            train_fraction: Fraction of rows used for training.
+
+        Returns:
+            SplitData object containing X/y train/test data.
+        """
+        split_index = int(len(df) * train_fraction)
+        train = df.iloc[:split_index].copy()
+        test = df.iloc[split_index:].copy()
+
+        return SplitData(
+            X_train=train[FEATURE_COLUMNS],
+            X_test=test[FEATURE_COLUMNS],
+            y_train=train["Target"],
+            y_test=test["Target"],
+            train_dates=train["Date"],
+            test_dates=test["Date"],
+        )
+
+    def fit(self, X_train: pd.DataFrame, y_train: pd.Series) -> None:
+        """Train the model."""
+        self.model.fit(X_train, y_train)
+
+    def predict(self, X_test: pd.DataFrame):
+        """Predict next-day direction for test data."""
+        return self.model.predict(X_test)
+
+    def predict_proba_positive(self, X_test: pd.DataFrame):
+        """Return probability that next-day return is positive, if available."""
+        if hasattr(self.model, "predict_proba"):
+            return self.model.predict_proba(X_test)[:, 1]
+        return self.predict(X_test)
+
+    def evaluate(self, y_true: pd.Series, y_pred) -> Dict[str, object]:
+        """Evaluate prediction quality.
+
+        Args:
+            y_true: Actual target values.
+            y_pred: Predicted target values.
+
+        Returns:
+            Dictionary of model metrics.
+        """
+        return {
+            "model_type": self.model_type,
+            "accuracy": float(accuracy_score(y_true, y_pred)),
+            "precision": float(precision_score(y_true, y_pred, zero_division=0)),
+            "recall": float(recall_score(y_true, y_pred, zero_division=0)),
+            "classification_report": classification_report(y_true, y_pred, zero_division=0),
+        }
+
+"""Feature engineering for MarketSense."""
+
+from __future__ import annotations
+
+import pandas as pd
+
+
+def add_features(data: pd.DataFrame) -> pd.DataFrame:
+    """Create predictive features from stock price data.
+
+    The prediction target is whether the next day's return is positive.
+    All features are calculated using current or past data only.
+
+    Args:
+        data: DataFrame containing at least Date, Close, and Volume.
+
+    Returns:
+        DataFrame with new feature columns and a Target column.
+    """
+    df = data.copy().sort_values("Date").reset_index(drop=True)
+
+    df["Daily_Return"] = df["Close"].pct_change()
+    df["Log_Volume_Change"] = df["Volume"].pct_change()
+
+    # Moving averages show short-term and medium-term trend.
+    df["MA_5"] = df["Close"].rolling(window=5).mean()
+    df["MA_20"] = df["Close"].rolling(window=20).mean()
+    df["MA_50"] = df["Close"].rolling(window=50).mean()
+
+    # Ratio features are scale-independent and easier for the model to use.
+    df["Price_to_MA5"] = df["Close"] / df["MA_5"] - 1
+    df["Price_to_MA20"] = df["Close"] / df["MA_20"] - 1
+    df["MA5_to_MA20"] = df["MA_5"] / df["MA_20"] - 1
+    df["MA20_to_MA50"] = df["MA_20"] / df["MA_50"] - 1
+
+    # Momentum and volatility features.
+    df["Momentum_5"] = df["Close"].pct_change(periods=5)
+    df["Momentum_10"] = df["Close"].pct_change(periods=10)
+    df["Volatility_5"] = df["Daily_Return"].rolling(window=5).std()
+    df["Volatility_20"] = df["Daily_Return"].rolling(window=20).std()
+
+    # Target is tomorrow's direction. This is shifted backward so today's row
+    # contains the label for the next trading day.
+    df["Next_Day_Return"] = df["Close"].pct_change().shift(-1)
+    df["Target"] = (df["Next_Day_Return"] > 0).astype(int)
+
+    df = df.dropna().reset_index(drop=True)
+    return df
+
+
+FEATURE_COLUMNS = [
+    "Daily_Return",
+    "Log_Volume_Change",
+    "Price_to_MA5",
+    "Price_to_MA20",
+    "MA5_to_MA20",
+    "MA20_to_MA50",
+    "Momentum_5",
+    "Momentum_10",
+    "Volatility_5",
+    "Volatility_20",
+]
+
+"""Data loading utilities for MarketSense.
+
+This module contains functions for downloading market data from Yahoo Finance
+and for generating synthetic demo data when internet access is unavailable.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+import numpy as np
+import pandas as pd
+
+
+def download_stock_data(ticker: str, start: str, end: str) -> pd.DataFrame:
+    """Download historical stock data using yfinance.
+
+    Args:
+        ticker: Stock ticker symbol, such as "AAPL" or "SPY".
+        start: Start date in YYYY-MM-DD format.
+        end: End date in YYYY-MM-DD format.
+
+    Returns:
+        A cleaned DataFrame with Date, Open, High, Low, Close, Adj Close, and Volume.
+
+    Raises:
+        RuntimeError: If yfinance is unavailable or no data is returned.
+    """
+    try:
+        import yfinance as yf
+    except ImportError as exc:
+        raise RuntimeError("yfinance is not installed. Run: pip install -r requirements.txt") from exc
+
+    data = yf.download(ticker, start=start, end=end, progress=False, auto_adjust=False)
+    if data.empty:
+        raise RuntimeError(
+            f"No data was returned for ticker '{ticker}'. Check the ticker or date range."
+        )
+
+    # yfinance sometimes returns a MultiIndex when using newer versions.
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
+
+    data = data.reset_index()
+    data["Date"] = pd.to_datetime(data["Date"])
+    data = data.dropna().sort_values("Date").reset_index(drop=True)
+    return data
+
+
+def generate_demo_data(days: int = 1500, seed: int = 42) -> pd.DataFrame:
+    """Generate synthetic stock-like data for offline demos.
+
+    This creates a noisy price series with trend, volatility, and occasional shocks.
+    It is not meant to represent a real company; it is only for testing and demos.
+
+    Args:
+        days: Number of business days to generate.
+        seed: Random seed for reproducibility.
+
+    Returns:
+        A DataFrame with the same basic columns as Yahoo Finance data.
+    """
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range(end=datetime.today(), periods=days)
+
+    # Simulate daily returns with small upward drift and changing volatility.
+    drift = 0.00025
+    volatility = rng.normal(0.0, 0.012, size=days)
+    shocks = rng.choice([0, 0, 0, 0.03, -0.03], size=days, p=[0.94, 0.02, 0.02, 0.01, 0.01])
+    returns = drift + volatility + shocks
+
+    close = 100 * np.cumprod(1 + returns)
+    open_price = close * (1 + rng.normal(0, 0.003, size=days))
+    high = np.maximum(open_price, close) * (1 + rng.uniform(0.001, 0.01, size=days))
+    low = np.minimum(open_price, close) * (1 - rng.uniform(0.001, 0.01, size=days))
+    volume = rng.integers(1_000_000, 8_000_000, size=days)
+
+    return pd.DataFrame(
+        {
+            "Date": dates,
+            "Open": open_price,
+            "High": high,
+            "Low": low,
+            "Close": close,
+            "Adj Close": close,
+            "Volume": volume,
+        }
+    )
+
+
+def save_raw_data(data: pd.DataFrame, output_dir: Path, ticker: str) -> Path:
+    """Save the raw input data to a CSV file.
+
+    Args:
+        data: Market data DataFrame.
+        output_dir: Directory where results should be saved.
+        ticker: Ticker name used in the file name.
+
+    Returns:
+        The path to the saved CSV file.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    safe_ticker = ticker.replace("/", "_").upper()
+    output_path = output_dir / f"{safe_ticker}_raw_data.csv"
+    data.to_csv(output_path, index=False)
+    return output_path
